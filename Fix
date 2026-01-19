@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PantauSehat - Diet & Asam Urat</title>
+<meta name="theme-color" content="#10b981">
+<meta property="og:title" content="PantauSehat App">
+<meta property="og:description" content="Hitung kalori diet, berat ideal, dan pantau asam urat.">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+body{font-family:'Inter',sans-serif;background-color:#f8fafc;-webkit-tap-highlight-color:transparent}
+.hide-scroll::-webkit-scrollbar{display:none}
+.page{display:none;opacity:0;transition:opacity 0.2s}
+.page.active{display:flex;opacity:1}
+.cat-chip.active{background-color:#10b981;color:white;border-color:#10b981}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:50;display:none;justify-content:center;align-items:flex-end}
+.modal-overlay.open{display:flex;animation:slideUp 0.3s ease-out}
+.modal-content{background:white;width:100%;max-width:480px;border-top-left-radius:24px;border-top-right-radius:24px;padding:24px;padding-bottom:40px;max-height:90vh;overflow-y:auto}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:10px 20px;border-radius:50px;font-size:12px;font-weight:bold;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:100;white-space:nowrap}
+.toast.show{opacity:1}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+</style>
+</head>
+<body class="max-w-md mx-auto min-h-screen bg-slate-50 relative shadow-2xl text-slate-800 text-sm">
+
+<div id="toast-msg" class="toast">Data tersimpan!</div>
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active flex-col h-screen overflow-hidden">
+    <!-- Header -->
+    <div class="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center shadow-sm z-20">
+        <div><h1 class="text-2xl font-bold text-emerald-700 tracking-tight">PantauSehat</h1><p class="text-xs text-slate-500">Diet & Asam Urat</p></div>
+        <div class="flex gap-2">
+            <button onclick="app.openProfileModal()" class="flex items-center gap-1 text-slate-600 px-3 py-1.5 bg-slate-100 rounded-full hover:bg-slate-200 border border-slate-200 text-xs font-bold active:scale-95 transition-transform">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Profil
+            </button>
+            <button onclick="app.shareApp()" class="flex items-center gap-1 text-emerald-700 px-3 py-1.5 bg-emerald-50 rounded-full hover:bg-emerald-100 border border-emerald-100 text-xs font-bold active:scale-95 transition-transform">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scroll">
+        
+        <!-- ALERT PROFIL (Jika Belum Isi) -->
+        <div id="alert-profile" onclick="app.openProfileModal()" class="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded shadow-sm cursor-pointer hidden">
+            <p class="font-bold text-xs">⚠️ Profil Belum Lengkap</p>
+            <p class="text-xs">Ketuk di sini untuk atur Berat Badan & Target Diet Anda.</p>
+        </div>
+
+        <!-- INFO BERAT BADAN & TARGET -->
+        <div id="card-weight-target" class="hidden bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+            <div>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Berat Saat Ini</p>
+                <p class="text-lg font-bold text-slate-700"><span id="display-current-weight">--</span> kg</p>
+            </div>
+            <div class="text-center">
+                <svg class="w-4 h-4 text-emerald-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] text-emerald-600 uppercase font-bold">Berat Ideal</p>
+                <p class="text-lg font-bold text-emerald-600"><span id="display-ideal-weight">--</span> kg</p>
+            </div>
+        </div>
+
+        <!-- SUMMARY KALORI (DINAMIS) -->
+        <div class="bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-2xl text-white shadow-lg relative overflow-hidden">
+            <div class="absolute right-0 top-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-10 -mt-10"></div>
+            <div class="flex justify-between items-start relative z-10">
+                <div>
+                    <p class="text-emerald-100 text-xs font-medium uppercase tracking-wider">Kalori Masuk</p>
+                    <h2 id="display-total-cal" class="text-4xl font-bold mt-1">0</h2>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-emerald-200">Target Diet</p>
+                    <p id="display-target-cal" class="font-bold text-xl">2000</p>
+                    <p class="text-[10px] text-emerald-200">Kkal</p>
+                </div>
+            </div>
+            <!-- Progress Bar Kalori -->
+            <div class="mt-3 bg-black/20 rounded-full h-2 w-full overflow-hidden">
+                <div id="bar-cal-main" class="bg-white h-full w-0 transition-all duration-500"></div>
+            </div>
+            <p id="text-cal-remaining" class="text-[10px] text-emerald-100 mt-1 text-right">Sisa: 2000 Kkal</p>
+        </div>
+
+        <!-- KARTU ASAM URAT -->
+        <div onclick="app.openUricModal()" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden cursor-pointer active:scale-95 transition-all group hover:border-emerald-300">
+            <div class="flex justify-between items-center relative z-10">
+                <div class="flex items-center gap-2">
+                    <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Cek Darah (Asam Urat)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="display-uric" class="text-xl font-bold text-slate-800">--</span>
+                    <div id="badge-uric-blood" class="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg text-[10px] font-bold">Belum Input</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATS GRID -->
+        <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm col-span-2">
+                <div class="flex justify-between text-xs mb-2 font-semibold text-slate-500"><span>METERAN PURIN (RISIKO)</span> <span id="text-purine-score" class="text-emerald-600">Aman</span></div>
+                <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex"><div id="bar-purine" class="h-full bg-emerald-500 w-0 transition-all duration-500"></div></div>
+                <p class="text-[10px] text-slate-400 mt-1">Naik jika makan jeroan, emping, bebek, dll.</p>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <div class="flex justify-between text-xs mb-2 font-semibold text-slate-500"><span>GULA (Max 30g)</span> <span id="text-sugar">0g</span></div>
+                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div id="bar-sugar" class="h-full bg-orange-400 w-0 transition-all duration-500"></div></div>
+            </div>
+            <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <div class="flex justify-between text-xs mb-2 font-semibold text-slate-500"><span>LEMAK (Max 60g)</span> <span id="text-fat">0g</span></div>
+                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div id="bar-fat" class="h-full bg-yellow-400 w-0 transition-all duration-500"></div></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="flex justify-between items-end mb-3 px-1"><h3 class="font-bold text-slate-700 text-base">Riwayat Makan</h3><button onclick="app.reset()" class="text-xs text-red-500 font-semibold hover:bg-red-50 px-2 py-1 rounded">Reset</button></div>
+            <div id="list-log" class="space-y-2.5"></div>
+        </div>
+    </div>
+    <button onclick="app.nav('add')" class="absolute bottom-6 right-6 bg-slate-800 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center active:scale-95 z-40 transition-transform"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+</div>
+
+<!-- ADD PAGE -->
+<div id="page-add" class="page flex-col h-screen bg-white">
+    <div class="p-4 border-b border-slate-100 bg-white z-10 shadow-sm">
+        <div class="flex items-center gap-3 mb-3"><button onclick="app.nav('dashboard')" class="p-2 -ml-2 rounded-full hover:bg-slate-50 text-slate-500"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><div class="relative flex-1"><input id="input-search" oninput="app.search()" type="text" placeholder="Cari 500+ Makanan..." class="w-full bg-slate-100 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800"><svg class="absolute left-3 top-3 text-slate-400" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></div></div>
+        <div class="flex gap-2 overflow-x-auto hide-scroll pb-1"><button onclick="app.filterCat('all')" id="cat-all" class="cat-chip active px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">Semua</button><button onclick="app.filterCat('berat')" id="cat-berat" class="cat-chip px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">🍚 Berat</button><button onclick="app.filterCat('lauk')" id="cat-lauk" class="cat-chip px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">🍗 Lauk</button><button onclick="app.filterCat('snack')" id="cat-snack" class="cat-chip px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">🍩 Snack</button><button onclick="app.filterCat('minum')" id="cat-minum" class="cat-chip px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">🥤 Minum</button><button onclick="app.filterCat('buah')" id="cat-buah" class="cat-chip px-4 py-1.5 rounded-full border border-slate-200 text-xs font-bold text-slate-500 whitespace-nowrap transition-colors">🍎 Buah</button></div>
+    </div>
+    <div onclick="app.openManualForm()" class="px-4 py-3 bg-emerald-50 cursor-pointer hover:bg-emerald-100 flex items-center gap-3 text-emerald-700 font-bold transition-colors border-b border-emerald-100"><div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-lg">+</div><span>Input Makanan Manual</span></div>
+    <div id="list-database" class="flex-1 overflow-y-auto p-0 pb-10 hide-scroll bg-slate-50/50"></div>
+</div>
+
+<!-- MODAL: PROFIL & DIET -->
+<div id="modal-profile" class="modal-overlay">
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Profil & Target Diet</h3><button onclick="app.closeModal('modal-profile')" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button></div>
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-bold text-slate-500">Berat (kg)</label><input id="prof-weight" type="number" class="w-full border p-3 rounded-xl mt-1 text-lg font-bold"></div>
+                <div><label class="text-xs font-bold text-slate-500">Tinggi (cm)</label><input id="prof-height" type="number" class="w-full border p-3 rounded-xl mt-1 text-lg font-bold"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-bold text-slate-500">Umur</label><input id="prof-age" type="number" class="w-full border p-3 rounded-xl mt-1"></div>
+                <div><label class="text-xs font-bold text-slate-500">Gender</label><select id="prof-gender" class="w-full border p-3 rounded-xl mt-1 bg-white"><option value="m">Pria</option><option value="f">Wanita</option></select></div>
+            </div>
+            <div>
+                <label class="text-xs font-bold text-slate-500">Aktivitas Harian</label>
+                <select id="prof-activity" class="w-full border p-3 rounded-xl mt-1 bg-white">
+                    <option value="1.2">Jarang Olahraga (Sedenter)</option>
+                    <option value="1.375">Ringan (1-3x/minggu)</option>
+                    <option value="1.55">Sedang (3-5x/minggu)</option>
+                    <option value="1.725">Berat (6-7x/minggu)</option>
+                </select>
+            </div>
+            
+            <div id="calc-result" class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 hidden">
+                <p class="text-xs font-bold text-emerald-800 uppercase border-b border-emerald-200 pb-2 mb-2">Hasil Perhitungan</p>
+                <div class="flex justify-between mb-1"><span class="text-slate-600">Berat Ideal:</span> <span id="res-ideal" class="font-bold text-emerald-700">-- kg</span></div>
+                <div class="flex justify-between mb-1"><span class="text-slate-600">Kebutuhan Harian:</span> <span id="res-tdee" class="font-bold text-slate-700">-- Kkal</span></div>
+                <div class="flex justify-between pt-2 border-t border-emerald-200 mt-2"><span class="font-bold text-slate-800">Target Diet (Defisit):</span> <span id="res-target" class="font-bold text-emerald-600 text-lg">-- Kkal</span></div>
+                <p class="text-[10px] text-emerald-600 mt-2 italic">*Target ini untuk penurunan ~0.5kg/minggu.</p>
+            </div>
+
+            <button onclick="app.calcProfile()" class="w-full py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Hitung Dulu</button>
+            <button onclick="app.saveProfile()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg">Simpan Profil</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: CEK DARAH -->
+<div id="modal-uric-blood" class="modal-overlay"><div class="modal-content"><div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Cek Darah</h3><button onclick="app.closeModal('modal-uric-blood')" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button></div><div class="space-y-4"><div><label class="text-xs font-bold text-slate-500 uppercase">Kadar Asam Urat (mg/dL)</label><div class="flex gap-3 mt-2"><input id="input-uric-level" type="number" step="0.1" placeholder="Cth: 6.5" class="flex-1 border-2 border-slate-200 p-4 rounded-xl text-xl font-bold text-center focus:border-emerald-500 outline-none"></div><p class="text-xs text-slate-400 mt-2 text-center">Normal: Pria < 7.0, Wanita < 6.0</p></div><button onclick="app.saveUricLevel()" class="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform mt-2">Simpan Hasil</button></div></div></div>
+
+<!-- MODAL: PORSI -->
+<div id="modal-portion" class="modal-overlay"><div class="modal-content"><div class="flex justify-between items-start mb-4"><div><h3 id="modal-food-name" class="text-xl font-bold text-slate-800">Nama</h3><p class="text-xs text-slate-500 mt-1">Pilih Porsi:</p></div><button onclick="app.closeModal('modal-portion')" class="text-slate-400 p-2 bg-slate-100 rounded-full hover:bg-slate-200">✕</button></div><div class="grid grid-cols-3 gap-3 mb-6"><button onclick="app.setPortion(0.5)" class="portion-btn group p-3 border border-slate-200 rounded-xl transition-all"><div class="text-lg font-bold text-slate-700">Setengah</div><div class="text-[10px] text-slate-400">0.5x</div></button><button onclick="app.setPortion(1)" class="portion-btn active p-3 border-2 border-emerald-500 bg-emerald-50 rounded-xl shadow-sm"><div class="text-lg font-bold text-emerald-700">Normal</div><div class="text-[10px] text-emerald-600">1x</div></button><button onclick="app.setPortion(2)" class="portion-btn group p-3 border border-slate-200 rounded-xl transition-all"><div class="text-lg font-bold text-slate-700">Double</div><div class="text-[10px] text-slate-400">2x</div></button></div><div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4 flex justify-between items-center"><span class="text-xs font-bold text-slate-500">Estimasi:</span><span id="modal-cal-preview" class="font-bold text-slate-800 text-lg">0 Kkal</span></div><button onclick="app.confirmAddDB()" class="w-full py-3.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">Tambahkan</button></div></div>
+
+<!-- MODAL: MANUAL -->
+<div id="modal-manual" class="modal-overlay"><div class="modal-content"><div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold">Input Manual</h3><button onclick="app.closeModal('modal-manual')" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button></div><div class="space-y-3"><input id="man-name" type="text" class="w-full border bg-slate-50 p-2.5 rounded-xl outline-none focus:border-emerald-500" placeholder="Nama Makanan"><div class="bg-slate-50 p-4 rounded-xl border border-slate-200"><p class="text-[10px] font-bold text-emerald-600 mb-3 border-b border-slate-200 pb-2 uppercase">Kalkulator Gizi</p><div class="grid grid-cols-2 gap-3 mb-3"><div><label class="text-[10px] font-bold text-slate-500">GULA (g)</label><input id="man-sugar" type="number" class="w-full border p-2 rounded-lg mt-1" oninput="app.calcManual()"></div><div><label class="text-[10px] font-bold text-slate-500">LEMAK (g)</label><input id="man-fat" type="number" class="w-full border p-2 rounded-lg mt-1" oninput="app.calcManual()"></div></div><div class="grid grid-cols-2 gap-3 mb-3"><div><label class="text-[10px] font-bold text-slate-500">KARBO (g)</label><input id="man-carbs" type="number" class="w-full border p-2 rounded-lg mt-1" oninput="app.calcManual()"></div><div><label class="text-[10px] font-bold text-slate-500">PROTEIN</label><input id="man-prot" type="number" class="w-full border p-2 rounded-lg mt-1" oninput="app.calcManual()"></div></div><div><label class="text-[10px] font-bold text-slate-500">RISIKO ASAM URAT</label><select id="man-purine" class="w-full border p-2 rounded-lg bg-white mt-1 text-sm"><option value="0">Aman</option><option value="1">Sedang</option><option value="2">Bahaya</option></select></div><div class="flex justify-between items-center pt-2 mt-2 border-t border-slate-200"><span class="text-xs font-bold text-slate-500">Total:</span><span id="man-cal-display" class="text-xl font-bold text-emerald-600">0 Kkal</span></div></div><button onclick="app.saveManual()" class="w-full py-3.5 bg-slate-800 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">Simpan</button></div></div></div>
+
+<script>
+// DATABASE RAKSASA (Sample representatif untuk berbagai kategori)
+const DB=[
+    // BERAT (Nasi/Mie)
+    {n:"Nasi Putih (1 Piring)",k:204,s:0,f:0,c:40,p:0,cat:'berat'},{n:"Nasi Putih (1/2 Porsi)",k:102,s:0,f:0,c:20,p:0,cat:'berat'},{n:"Nasi Merah",k:180,s:0,f:1,c:38,p:0,cat:'berat'},
+    {n:"Nasi Goreng Biasa",k:350,s:2,f:12,c:45,p:1,cat:'berat'},{n:"Nasi Goreng Spesial",k:450,s:2,f:18,c:45,p:1,cat:'berat'},{n:"Nasi Goreng Kambing",k:500,s:2,f:20,c:45,p:2,cat:'berat'},
+    {n:"Nasi Uduk Komplit",k:450,s:2,f:18,c:55,p:1,cat:'berat'},{n:"Nasi Kuning",k:400,s:2,f:15,c:55,p:1,cat:'berat'},
+    {n:"Nasi Padang (Rendang)",k:650,s:3,f:30,c:60,p:1,cat:'berat'},{n:"Nasi Padang (Ayam Pop)",k:600,s:3,f:25,c:60,p:1,cat:'berat'},
+    {n:"Bubur Ayam",k:250,s:1,f:8,c:35,p:0,cat:'berat'},{n:"Mie Ayam",k:380,s:2,f:10,c:45,p:1,cat:'berat'},{n:"Mie Ayam Bakso",k:450,s:2,f:14,c:50,p:1,cat:'berat'},
+    {n:"Indomie Goreng",k:380,s:3,f:15,c:50,p:0,cat:'berat'},{n:"Indomie Rebus",k:350,s:3,f:12,c:48,p:0,cat:'berat'},
+    {n:"Soto Ayam+Nasi",k:350,s:1,f:10,c:50,p:1,cat:'berat'},{n:"Soto Betawi+Nasi",k:550,s:2,f:25,c:55,p:2,cat:'berat'},
+    {n:"Lontong Sayur",k:350,s:3,f:15,c:40,p:1,cat:'berat'},{n:"Ketoprak",k:400,s:8,f:12,c:45,p:0,cat:'berat'},
+    
+    // LAUK (Protein)
+    {n:"Ayam Goreng Dada",k:220,s:0,f:10,c:0,p:1,cat:'lauk'},{n:"Ayam Goreng Paha",k:250,s:0,f:15,c:0,p:1,cat:'lauk'},{n:"Ayam Bakar",k:200,s:3,f:8,c:2,p:1,cat:'lauk'},
+    {n:"Sate Ayam (5 Tsk)",k:200,s:5,f:8,c:3,p:1,cat:'lauk'},{n:"Sate Kambing (5 Tsk)",k:250,s:3,f:14,c:2,p:2,cat:'lauk'},
+    {n:"Rendang Daging",k:200,s:1,f:15,c:5,p:1,cat:'lauk'},{n:"Dendeng Balado",k:250,s:2,f:12,c:4,p:1,cat:'lauk'},
+    {n:"Bebek Goreng",k:450,s:0,f:30,c:0,p:2,cat:'lauk'},{n:"Lele Goreng",k:220,s:0,f:15,c:2,p:1,cat:'lauk'},
+    {n:"Ikan Mas Goreng",k:200,s:0,f:12,c:2,p:1,cat:'lauk'},{n:"Gurame Bakar",k:250,s:2,f:8,c:4,p:1,cat:'lauk'},
+    {n:"Udang Goreng Tepung",k:220,s:0,f:12,c:10,p:2,cat:'lauk'},{n:"Cumi Saus Padang",k:200,s:2,f:10,c:8,p:2,cat:'lauk'},
+    {n:"Telur Ceplok",k:110,s:0,f:10,c:1,p:0,cat:'lauk'},{n:"Telur Dadar",k:120,s:0,f:12,c:1,p:0,cat:'lauk'},{n:"Telur Rebus",k:75,s:0,f:5,c:1,p:0,cat:'lauk'},
+    {n:"Tempe Goreng",k:80,s:0,f:6,c:8,p:0,cat:'lauk'},{n:"Tahu Goreng",k:60,s:0,f:5,c:4,p:0,cat:'lauk'},
+    {n:"Ati Ampela Goreng",k:180,s:0,f:10,c:1,p:2,cat:'lauk'},{n:"Usus Goreng",k:200,s:0,f:15,c:1,p:2,cat:'lauk'},
+    
+    // SNACK
+    {n:"Martabak Manis (1 Ptg)",k:280,s:20,f:12,c:30,p:0,cat:'snack'},{n:"Martabak Telur (1 Ptg)",k:200,s:0,f:15,c:15,p:1,cat:'snack'},
+    {n:"Pisang Goreng",k:140,s:8,f:8,c:20,p:0,cat:'snack'},{n:"Bakwan/Gorengan",k:140,s:0,f:10,c:15,p:0,cat:'snack'},
+    {n:"Cireng",k:130,s:0,f:8,c:15,p:0,cat:'snack'},{n:"Batagor",k:350,s:5,f:20,c:30,p:1,cat:'snack'},{n:"Siomay",k:320,s:5,f:15,c:25,p:1,cat:'snack'},
+    {n:"Pempek Kapal Selam",k:300,s:10,f:12,c:35,p:0,cat:'snack'},{n:"Kerupuk Putih",k:100,s:0,f:5,c:15,p:0,cat:'snack'},
+    {n:"Emping Melinjo",k:180,s:0,f:10,c:15,p:2,cat:'snack'},{n:"Keripik Singkong",k:160,s:0,f:10,c:20,p:0,cat:'snack'},
+    {n:"Roti Tawar (1 lbr)",k:90,s:2,f:1,c:15,p:0,cat:'snack'},{n:"Roti Coklat",k:250,s:15,f:8,c:35,p:0,cat:'snack'},
+    {n:"Donat",k:220,s:10,f:12,c:30,p:0,cat:'snack'},{n:"Seblak",k:400,s:2,f:15,c:40,p:1,cat:'snack'},
+    
+    // MINUMAN
+    {n:"Air Putih",k:0,s:0,f:0,c:0,p:0,cat:'minum'},{n:"Es Teh Manis",k:90,s:20,f:0,c:20,p:0,cat:'minum'},
+    {n:"Kopi Hitam (Gula)",k:45,s:10,f:0,c:10,p:0,cat:'minum'},{n:"Kopi Susu Gula Aren",k:220,s:25,f:6,c:25,p:0,cat:'minum'},
+    {n:"Boba Milk Tea",k:450,s:40,f:10,c:60,p:0,cat:'minum'},{n:"Es Jeruk",k:90,s:15,f:0,c:20,p:0,cat:'minum'},
+    {n:"Jus Alpukat",k:350,s:20,f:20,c:25,p:0,cat:'minum'},{n:"Soda (Cola/Sprite)",k:140,s:35,f:0,c:35,p:0,cat:'minum'},
+    
+    // BUAH & SAYUR
+    {n:"Pisang",k:90,s:12,f:0,c:23,p:0,cat:'buah'},{n:"Apel",k:50,s:10,f:0,c:14,p:0,cat:'buah'},{n:"Jeruk",k:45,s:9,f:0,c:12,p:0,cat:'buah'},
+    {n:"Mangga",k:130,s:25,f:0,c:30,p:0,cat:'buah'},{n:"Pepaya",k:40,s:5,f:0,c:10,p:0,cat:'buah'},{n:"Durian (3 biji)",k:350,s:20,f:15,c:30,p:0,cat:'buah'},
+    {n:"Sayur Bayam",k:40,s:0,f:0,c:5,p:1,cat:'buah'},{n:"Sayur Asem",k:80,s:2,f:2,c:10,p:1,cat:'buah'},{n:"Tumis Kangkung",k:90,s:0,f:8,c:5,p:1,cat:'buah'},
+    {n:"Capcay",k:90,s:1,f:5,c:8,p:0,cat:'buah'},{n:"Lalapan",k:10,s:0,f:0,c:2,p:0,cat:'buah'},{n:"Sambal",k:25,s:0,f:2,c:2,p:0,cat:'buah'}
+];
+
+const app={
+    log: JSON.parse(localStorage.getItem('ps_log')) || [],
+    uricLevel: parseFloat(localStorage.getItem('ps_uric')) || 0,
+    profile: JSON.parse(localStorage.getItem('ps_prof')) || null,
+    tempItem: null, tempPortion: 1, currentCat: 'all',
+
+    init: () => { 
+        app.filterCat('all'); 
+        app.renderLog(); 
+        app.renderUricLevel();
+        app.updateProfileUI();
+    },
+    
+    // NAV & UTILS
+    nav: (id) => { document.querySelectorAll('.page').forEach(e=>e.classList.remove('active')); document.getElementById('page-'+id).classList.add('active'); },
+    openModal: (id) => document.getElementById(id).classList.add('open'),
+    closeModal: (id) => document.getElementById(id).classList.remove('open'),
+    showToast: (msg) => { const t=document.getElementById('toast-msg'); t.innerText=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); },
+    shareApp: async () => {
+        const url=window.location.href; if(url.startsWith('blob:')||url.startsWith('file:')){alert("Aplikasi belum di-hosting.");return}
+        if(navigator.share){try{await navigator.share({title:'PantauSehat',text:'Pantau makan harian!',url:url})}catch(e){}}else{try{await navigator.clipboard.writeText(url);app.showToast("Link tersalin!")}catch(e){prompt("Copy:",url)}}
+    },
+
+    // PROFIL & DIET LOGIC
+    openProfileModal: () => {
+        if(app.profile) {
+            document.getElementById('prof-weight').value = app.profile.weight;
+            document.getElementById('prof-height').value = app.profile.height;
+            document.getElementById('prof-age').value = app.profile.age;
+            document.getElementById('prof-gender').value = app.profile.gender;
+            document.getElementById('prof-activity').value = app.profile.activity;
+            app.calcProfile(); // auto calc to show result
+        }
+        app.openModal('modal-profile');
+    },
+    calcProfile: () => {
+        const w = parseFloat(document.getElementById('prof-weight').value);
+        const h = parseFloat(document.getElementById('prof-height').value);
+        const a = parseFloat(document.getElementById('prof-age').value);
+        const g = document.getElementById('prof-gender').value;
+        const act = parseFloat(document.getElementById('prof-activity').value);
+
+        if(!w || !h || !a) { alert("Isi semua data!"); return null; }
+
+        // 1. Ideal Weight (Broca Modified)
+        // Pria: (TB-100) - 10%, Wanita: (TB-100) - 15%
+        let ideal = (h - 100);
+        if(g === 'm') ideal -= (ideal * 0.10);
+        else ideal -= (ideal * 0.15);
+
+        // 2. BMR (Mifflin-St Jeor)
+        let bmr = (10 * w) + (6.25 * h) - (5 * a);
+        if(g === 'm') bmr += 5; else bmr -= 161;
+
+        // 3. TDEE
+        const tdee = bmr * act;
+        
+        // 4. Target (Defisit 500)
+        let target = Math.round(tdee - 500);
+        if(target < 1200) target = 1200; // Safety floor
+
+        // Show Result in Modal
+        document.getElementById('calc-result').classList.remove('hidden');
+        document.getElementById('res-ideal').innerText = Math.round(ideal) + " kg";
+        document.getElementById('res-tdee').innerText = Math.round(tdee) + " Kkal";
+        document.getElementById('res-target').innerText = target + " Kkal";
+
+        return { weight: w, height: h, age: a, gender: g, activity: act, ideal: ideal, tdee: tdee, target: target };
+    },
+    saveProfile: () => {
+        const data = app.calcProfile();
+        if(data) {
+            app.profile = data;
+            localStorage.setItem('ps_prof', JSON.stringify(data));
+            app.closeModal('modal-profile');
+            app.updateProfileUI();
+            app.renderLog(); // Re-render dashboard charts with new target
+            app.showToast("Profil disimpan!");
+        }
+    },
+    updateProfileUI: () => {
+        if(!app.profile) {
+            document.getElementById('alert-profile').classList.remove('hidden');
+            document.getElementById('card-weight-target').classList.add('hidden');
+            return;
+        }
+        // Hide Alert, Show Card
+        document.getElementById('alert-profile').classList.add('hidden');
+        document.getElementById('card-weight-target').classList.remove('hidden');
+        
+        document.getElementById('display-current-weight').innerText = app.profile.weight;
+        document.getElementById('display-ideal-weight').innerText = Math.round(app.profile.ideal);
+        document.getElementById('display-target-cal').innerText = app.profile.target;
+        document.getElementById('text-cal-remaining').innerText = `Target: ${app.profile.target} Kkal`;
+    },
+
+    // ASAM URAT & DARAH
+    openUricModal: () => { document.getElementById('input-uric-level').value = app.uricLevel || ""; app.openModal('modal-uric-blood'); },
+    saveUricLevel: () => {
+        const val = parseFloat(document.getElementById('input-uric-level').value);
+        if(!isNaN(val)) { app.uricLevel=val; localStorage.setItem('ps_uric',val); app.renderUricLevel(); app.closeModal('modal-uric-blood'); app.showToast("Disimpan!"); }
+    },
+    renderUricLevel: () => {
+        const el=document.getElementById('display-uric'), b=document.getElementById('badge-uric-blood'), v=app.uricLevel;
+        if(!v){el.innerText="--";b.innerText="Isi Data";b.className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg text-[10px] font-bold";return}
+        el.innerText=v;
+        if(v>7.0){b.innerText="TINGGI";b.className="bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold"}
+        else if(v>=6.0){b.innerText="WASPADA";b.className="bg-orange-400 text-white px-2 py-1 rounded-lg text-[10px] font-bold"}
+        else{b.innerText="NORMAL";b.className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold"}
+    },
+
+    // DATABASE & LOG
+    filterCat: (cat) => { app.currentCat=cat; document.querySelectorAll('.cat-chip').forEach(e=>e.classList.remove('active')); document.getElementById('cat-'+cat).classList.add('active'); app.search(); },
+    search: () => {
+        const q=document.getElementById('input-search').value.toLowerCase();
+        const filtered=DB.filter(i=>(app.currentCat==='all'||i.cat===app.currentCat)&&i.n.toLowerCase().includes(q));
+        document.getElementById('list-database').innerHTML=filtered.length?filtered.map(i=>`<div onclick="app.selectDBItem('${i.n}')" class="p-4 border-b border-slate-200 bg-white hover:bg-emerald-50 active:bg-emerald-100 cursor-pointer flex justify-between items-center"><div><div class="font-bold text-slate-800">${i.n}</div><div class="text-[10px] text-slate-500 mt-1 flex gap-2"><span class="bg-slate-100 px-1 rounded font-bold">${i.k} Kal</span>${i.p===2?'<span class="text-red-500 font-bold">⚠️ Bahaya Purin</span>':(i.p===1?'<span class="text-orange-500 font-bold">Sedang Purin</span>':'<span class="text-emerald-600">Aman</span>')}</div></div><div class="w-8 h-8 rounded-full border border-emerald-500 text-emerald-600 flex items-center justify-center font-bold">+</div></div>`).join(''):'<div class="p-8 text-center text-slate-400 text-xs">Tidak ditemukan.</div>';
+    },
+    selectDBItem: (name) => { app.tempItem=DB.find(i=>i.n===name); app.setPortion(1); document.getElementById('modal-food-name').innerText=app.tempItem.n; app.openModal('modal-portion'); },
+    setPortion: (p) => {
+        app.tempPortion=p; document.querySelectorAll('.portion-btn').forEach((b,i)=>{ const a=(p===0.5&&i===0)||(p===1&&i===1)||(p===2&&i===2); b.className=`portion-btn p-3 border rounded-xl transition-all ${a?'border-2 border-emerald-500 bg-emerald-50':'border-slate-200'}`; b.children[0].className=`text-lg font-bold ${a?'text-emerald-700':'text-slate-700'}`; });
+        document.getElementById('modal-cal-preview').innerText=Math.round(app.tempItem.k*p)+" Kkal";
+    },
+    confirmAddDB: () => { const i=app.tempItem,p=app.tempPortion; app.addToLog({name:i.n+(p!==1?` (${p}x)`:''),s:i.s*p,f:i.f*p,c:i.c*p,p:i.p,k:Math.round(i.k*p)}); app.closeModal('modal-portion'); app.nav('dashboard'); document.getElementById('input-search').value=""; app.search(); },
+    openManualForm: () => { ['man-name','man-sugar','man-fat','man-carbs','man-prot'].forEach(id=>document.getElementById(id).value=''); document.getElementById('man-cal-display').innerText="0 Kkal"; app.openModal('modal-manual'); },
+    calcManual: () => { const k=(parseFloat(document.getElementById('man-fat').value)||0)*9+(parseFloat(document.getElementById('man-carbs').value)||0)*4+(parseFloat(document.getElementById('man-prot').value)||0)*4; document.getElementById('man-cal-display').innerText=Math.round(k)+" Kkal"; return Math.round(k); },
+    saveManual: () => { app.addToLog({name:document.getElementById('man-name').value||"Manual",s:parseFloat(document.getElementById('man-sugar').value)||0,f:parseFloat(document.getElementById('man-fat').value)||0,c:parseFloat(document.getElementById('man-carbs').value)||0,p:parseInt(document.getElementById('man-purine').value),k:app.calcManual()}); app.closeModal('modal-manual'); app.nav('dashboard'); },
+    addToLog: (d) => { app.log.push(d); localStorage.setItem('ps_log',JSON.stringify(app.log)); app.renderLog(); app.showToast("Makanan ditambahkan!"); },
+    
+    renderLog: () => {
+        let t={s:0,f:0,c:0,k:0,pScore:0}; const list=document.getElementById('list-log'); list.innerHTML=app.log.length?'':'<div class="text-center py-8 bg-white border border-dashed rounded-xl text-xs text-slate-400">Belum ada makanan dicatat hari ini.</div>';
+        app.log.forEach((i,idx)=>{ 
+            t.s+=i.s;t.f+=i.f;t.c+=i.c;t.k+=i.k; 
+            if(i.p===2) t.pScore += 2; else if(i.p===1) t.pScore += 1;
+            list.innerHTML+=`<div class="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center shadow-sm animate-[slideUp_0.2s]"><div><div class="font-bold text-slate-800 text-sm">${i.name}</div><div class="text-[10px] text-slate-500 mt-1">${i.k} Kal • G:${i.s.toFixed(0)} L:${i.f.toFixed(0)}</div></div><button onclick="app.remove(${idx})" class="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full">✕</button></div>`; 
+        });
+        document.getElementById('display-total-cal').innerText=t.k;
+        
+        // DYNAMIC TARGET LOGIC
+        const target = app.profile ? app.profile.target : 2000; // Default 2000 if no profile
+        const remaining = target - t.k;
+        document.getElementById('display-target-cal').innerText = target;
+        document.getElementById('text-cal-remaining').innerText = remaining >= 0 ? `Sisa: ${remaining} Kkal` : `Berlebih: ${Math.abs(remaining)} Kkal`;
+        
+        // Progress Bar Main
+        const barMain = document.getElementById('bar-cal-main');
+        const pctMain = Math.min((t.k/target)*100, 100);
+        barMain.style.width = pctMain + "%";
+        if(t.k > target) barMain.classList.replace('bg-white', 'bg-red-300'); else barMain.classList.replace('bg-red-300', 'bg-white');
+
+        const setBar=(id,v,m,c)=>{ const el=document.getElementById('bar-'+id),txt=document.getElementById('text-'+id); el.style.width=Math.min((v/m)*100,100)+'%'; txt.innerText=v.toFixed(0)+(id==='purine-score'?'':'g'); el.className=`h-full w-0 transition-all ${v>m?'bg-red-500':c}`; txt.className=v>m?'text-red-600 font-bold':'text-slate-500'; };
+        setBar('sugar',t.s,30,'bg-orange-400'); setBar('fat',t.f,60,'bg-yellow-400');
+        const pBar = document.getElementById('bar-purine'), pTxt = document.getElementById('text-purine-score');
+        const pPct = Math.min((t.pScore/5)*100, 100); pBar.style.width = pPct + "%";
+        if(t.pScore >= 5) { pTxt.innerText="BAHAYA"; pTxt.className="text-red-600 font-bold"; pBar.className="h-full bg-red-500 w-0 transition-all"; }
+        else if(t.pScore >= 3) { pTxt.innerText="WASPADA"; pTxt.className="text-orange-500 font-bold"; pBar.className="h-full bg-orange-400 w-0 transition-all"; }
+        else { pTxt.innerText="AMAN"; pTxt.className="text-emerald-600 font-bold"; pBar.className="h-full bg-emerald-500 w-0 transition-all"; }
+    },
+    remove: (idx)=>{app.log.splice(idx,1);localStorage.setItem('ps_log',JSON.stringify(app.log));app.renderLog()},
+    reset: ()=>{if(confirm("Hapus semua?")){app.log=[];localStorage.removeItem('ps_log');app.renderLog()}}
+};
+window.onload=app.init;
+</script>
+</body>
+</html>
+
